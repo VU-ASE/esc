@@ -6,14 +6,14 @@
 
 // Values for White remote controller
 // TODO these are old values
-#define PCA_LOW_END 1000
-#define PCA_HIGH_END 2000
+// #define PCA_LOW_END 1000
+// #define PCA_HIGH_END 2000
 
 
 // Values for our GO implementation
 // TODO These are values setup by the mod-Actuator
-// #define PCA_LOW_END 940
-// #define PCA_HIGH_END 3740
+#define PCA_LOW_END 940
+#define PCA_HIGH_END 3740
 
 
 volatile long start_time = 0;

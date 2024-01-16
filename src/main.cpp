@@ -22,7 +22,7 @@ MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 #define TOP_SPEED 150.0
 
 
-#define MONITOR true
+#define MONITOR false
 
 Commander command = Commander(Serial);
 void doMotor(char* cmd) { command.motor(&motor, cmd); }
