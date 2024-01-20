@@ -4,51 +4,61 @@
 #include <SimpleFOC.h>
 
 
-// Values for White remote controller
-// TODO these are old values
-// #define PCA_LOW_END 1000
-// #define PCA_HIGH_END 2000
+
+// Values from PCA as tuned by the servo tester
+#define PULSE_LOW_END 1085
+#define PULSE_HIGH_END 1860
 
 
-// Values for our GO implementation
-// TODO These are values setup by the mod-Actuator
-#define PCA_LOW_END 940
-#define PCA_HIGH_END 3740
-
-
-volatile long start_time = 0;
+volatile long prev_time = 0;
 volatile long current_time = 0;
+volatile long disconnect_counter = 0;
 volatile long time_between_pulses_micro_seconds = 0;
-float esc_pwm_input = 0.0;
 
-void pulse_timer() {
+float throttle = 0.0;
+
+void signal_change() {
+	disconnect_counter = 0;
 	current_time = micros();
-	if (current_time > start_time) {
-		time_between_pulses_micro_seconds = current_time - start_time;
-		start_time = current_time;
+	if (current_time > prev_time) {
+		time_between_pulses_micro_seconds = current_time - prev_time;
+		prev_time = current_time;
 	}
-	return;
 }
 
-void pca_input_init() {
+
+#define DEAD_ZONE_THRESH 0.01f
+
+void pwm_signal_read() {
+	if (disconnect_counter > 200) {
+		throttle = 0.0f;
+		return;
+	}
+
+	if (time_between_pulses_micro_seconds <= PULSE_HIGH_END && time_between_pulses_micro_seconds >= PULSE_LOW_END) {
+		throttle = (((time_between_pulses_micro_seconds - PULSE_LOW_END) / (float) (PULSE_HIGH_END - PULSE_LOW_END)) * 2.0f) - 1.0f;
+
+		if (throttle > 1.0f) { throttle = 1.0f; }
+		if (throttle < -1.0f) { throttle = -1.0f; }
+		if ((throttle <= DEAD_ZONE_THRESH) && (throttle >= 0.0f - DEAD_ZONE_THRESH)) {
+		  throttle = 0.0;
+		}
+
+	}
+
+	disconnect_counter += 1;
+}
+
+
+
+
+void pwm_signal_init() {
 	pinMode(A_PWM, INPUT);
-	attachInterrupt(digitalPinToInterrupt(A_PWM), pulse_timer, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(A_PWM), signal_change, CHANGE);
 }
 
 
-// TODO: Optimize such that the value is scaled to the speed range immediately
-// instead of scaling to (-1.0, 1.0) first
-void pca_input_read() {
-	if (time_between_pulses_micro_seconds < PCA_HIGH_END + 100) {
-		esc_pwm_input = (((time_between_pulses_micro_seconds - PCA_LOW_END) / (float) (PCA_HIGH_END - PCA_LOW_END)) * 2.0f) - 1.0f;
-	}
-	if (esc_pwm_input > 1.0f) {
-		esc_pwm_input = 1.0f;
-	}
-	if (esc_pwm_input < -1.0f) {
-		esc_pwm_input = -1.0f;
-	}
-}
+
 
 
 

@@ -22,7 +22,7 @@ MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 #define TOP_SPEED 150.0
 
 
-#define MONITOR false
+#define MONITOR true
 
 Commander command = Commander(Serial);
 void doMotor(char* cmd) { command.motor(&motor, cmd); }
@@ -35,16 +35,16 @@ void setup() {
     Serial.print("TOP_SPEED: ");
     Serial.println(TOP_SPEED);
     Serial.println("--------------");
-    motor.useMonitoring(Serial);
-    motor.monitor_downsample = MOTION_DOWN_SAMPLE;
-    command.add('M', doMotor, "motor");
-    command.add('A', doMotor, "my motor");
+    // motor.useMonitoring(Serial);
+    // motor.monitor_downsample = MOTION_DOWN_SAMPLE;
+    // command.add('M', doMotor, "motor");
+    // command.add('A', doMotor, "my motor");
   }
 
 
   // INIT FOR READING PWM
   pinMode(A_PWM, INPUT);
-  pca_input_init();
+  pwm_signal_init();
 
 
   // MAGNETIC SENSOR INIT
@@ -95,21 +95,26 @@ void setup() {
 
 
 // TODO test if we need smoothing window
-// #define SMOOTHING_WINDOW_SIZE 200
-// float input_window[SMOOTHING_WINDOW_SIZE];
-// int counter = 0;
+#define SMOOTHING_WINDOW_SIZE 20
+float input_window[SMOOTHING_WINDOW_SIZE];
+int counter = 0;
 
-// float smooth_input(float new_value) {
-//   input_window[counter % SMOOTHING_WINDOW_SIZE] = new_value;
-//   counter++;
+float smooth_input(float new_value) {
+  input_window[counter % SMOOTHING_WINDOW_SIZE] = new_value;
+  counter++;
 
-//   float sum = 0.0;
-//   for (int i = 0; i < SMOOTHING_WINDOW_SIZE; i++) {
-//     sum += input_window[i];
-//   }
+  float sum = 0.0;
+  for (int i = 0; i < SMOOTHING_WINDOW_SIZE; i++) {
+    sum += input_window[i];
+  }
 
-//   return sum / ((float) SMOOTHING_WINDOW_SIZE);
-// }
+  // Serial.print("sum: ");
+  // Serial.print(sum);
+  // Serial.print("sum: ");
+  // Serial.print(sum);
+
+  return sum / ((float) SMOOTHING_WINDOW_SIZE);
+}
 
 
 
@@ -118,14 +123,18 @@ void setup() {
 float target = 0.0;
 
 void loop() {
-  pca_input_read();
+  pwm_signal_read();
 
-  target = esc_pwm_input * TOP_SPEED;
+  float target = smooth_input( (float) ((int) (throttle * TOP_SPEED)) );
+  // float target = throttle * TOP_SPEED;
+  // float target = throttle;
+  
+  // target = val * TOP_SPEED;
 
   // TODO TUNE this
-  if (esc_pwm_input <= DEAD_ZONE_THRESH && esc_pwm_input >= 0.0f - DEAD_ZONE_THRESH) {
-    target = 0.0;
-  }
+  // if (target <= DEAD_ZONE_THRESH && target >= 0.0f - DEAD_ZONE_THRESH) {
+  //   target = 0.0;
+  // }
 
 
   motor.loopFOC();
@@ -133,12 +142,15 @@ void loop() {
 
 
   if (MONITOR) {
-    Serial.print(esc_pwm_input);
+    Serial.print("    ");
+    Serial.print(disconnect_counter);
+    Serial.print("    ");
+    Serial.print(time_between_pulses_micro_seconds);
     Serial.print("    ");
     Serial.println(target);
 
-    motor.monitor();
-    command.run();
+    // motor.monitor();
+    // command.run();
   }
 }
 
