@@ -1,6 +1,6 @@
 #include <SimpleFOC.h>
 
-#include "basic_pwn_in.h"
+
 
 BLDCMotor motor = BLDCMotor(7);
 BLDCDriver6PWM driver = BLDCDriver6PWM(A_PHASE_UH, A_PHASE_UL, A_PHASE_VH, A_PHASE_VL, A_PHASE_WH, A_PHASE_WL);
@@ -18,11 +18,111 @@ MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 #define SENSOR_ALIGN_VOLTAGE 1.0
 #define MOTION_DOWN_SAMPLE 0.0
 
-// This can be pushed more when voltage goes up
+
+#define MONITOR false
+
+
+const long SMOOTHING_WINDOW_SIZE = 10;
+long input_window[SMOOTHING_WINDOW_SIZE] = {0};
+int index_num = 0;
+long sum = 0;
+
+long smooth_input(long new_value) {
+  index_num = (index_num + 1) % SMOOTHING_WINDOW_SIZE;
+  sum -= input_window[index_num];
+  input_window[index_num] = new_value;
+  sum += new_value;
+  return sum / SMOOTHING_WINDOW_SIZE;
+}
+
+
+
+// Values from PCA as tuned by the servo tester
+#define PULSE_LOW_END 1085
+#define PULSE_HIGH_END 1860
+
 #define TOP_SPEED 150.0
 
+volatile long prev_time = 0;
+volatile long current_time = 0;
+volatile long disconnect_counter = 0;
+volatile long time_between_pulses_micro_seconds = 0;
 
-#define MONITOR true
+float throttle = 0.0;
+
+void signal_change() {
+  disconnect_counter = 0;
+  int current_state = digitalRead(A_PWM);
+  if (current_state == HIGH) {
+    prev_time = micros();
+    return;
+  }
+  current_time = micros();
+  long delta = current_time - prev_time;
+  if (delta > 0 ) {
+    time_between_pulses_micro_seconds = smooth_input(delta);
+  }
+}
+
+
+
+#define DEAD_ZONE_THRESH 1.0f
+
+void pwm_signal_read() {
+	if (disconnect_counter > 200) {
+		throttle = 0.0f;
+		return;
+	}
+
+	if (time_between_pulses_micro_seconds <= PULSE_HIGH_END && time_between_pulses_micro_seconds >= PULSE_LOW_END) {
+		throttle = (((time_between_pulses_micro_seconds - PULSE_LOW_END) / (float) (PULSE_HIGH_END - PULSE_LOW_END)) * 2.0f * TOP_SPEED) - TOP_SPEED;
+
+		if (throttle > TOP_SPEED) { throttle = TOP_SPEED; }
+		if (throttle < -TOP_SPEED) { throttle = -TOP_SPEED; }
+
+    // For now no dead_zone
+		if ((throttle <= DEAD_ZONE_THRESH) && (throttle >= 0.0f - DEAD_ZONE_THRESH)) {
+      throttle = 0.0;
+		}
+
+	}
+
+	disconnect_counter += 1;
+}
+
+
+
+
+void pwm_signal_init() {
+	pinMode(A_PWM, INPUT);
+	attachInterrupt(digitalPinToInterrupt(A_PWM), signal_change, CHANGE);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Commander command = Commander(Serial);
 void doMotor(char* cmd) { command.motor(&motor, cmd); }
@@ -94,27 +194,7 @@ void setup() {
 
 
 
-// TODO test if we need smoothing window
-#define SMOOTHING_WINDOW_SIZE 20
-float input_window[SMOOTHING_WINDOW_SIZE];
-int counter = 0;
 
-float smooth_input(float new_value) {
-  input_window[counter % SMOOTHING_WINDOW_SIZE] = new_value;
-  counter++;
-
-  float sum = 0.0;
-  for (int i = 0; i < SMOOTHING_WINDOW_SIZE; i++) {
-    sum += input_window[i];
-  }
-
-  // Serial.print("sum: ");
-  // Serial.print(sum);
-  // Serial.print("sum: ");
-  // Serial.print(sum);
-
-  return sum / ((float) SMOOTHING_WINDOW_SIZE);
-}
 
 
 
@@ -125,7 +205,10 @@ float target = 0.0;
 void loop() {
   pwm_signal_read();
 
-  float target = smooth_input( (float) ((int) (throttle * TOP_SPEED)) );
+
+  float target = throttle;
+
+
   // float target = throttle * TOP_SPEED;
   // float target = throttle;
   
@@ -142,9 +225,6 @@ void loop() {
 
 
   if (MONITOR) {
-    Serial.print("    ");
-    Serial.print(disconnect_counter);
-    Serial.print("    ");
     Serial.print(time_between_pulses_micro_seconds);
     Serial.print("    ");
     Serial.println(target);
