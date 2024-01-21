@@ -7,8 +7,17 @@ LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0/7.0, A_OP1_O
 MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
 
+#define MONITOR true
+#define SKIP_CALIBRATION false
 
-#define MONITOR false
+enum WhichMotor {
+  LEFT_MOTOR,
+  RIGHT_MOTOR
+};
+
+
+// CHANGE THIS DEPENDING ON WHICH MOTOR YOU ARE FLASHING
+enum WhichMotor this_motor = RIGHT_MOTOR;
 
 
 const long SMOOTHING_WINDOW_SIZE = 10;
@@ -27,13 +36,14 @@ long smooth_input(long new_value) {
 
 
 // Values from PCA as tuned by the servo tester
-#define PULSE_LOW_END 1085
+#define PULSE_LOW_END 1087
 #define PULSE_HIGH_END 1860
 
 #define TOP_SPEED 150.0
 
 volatile long prev_time = 0;
 volatile long current_time = 0;
+volatile long delta = 0;
 volatile long disconnect_counter = 0;
 volatile long time_between_pulses_micro_seconds = 0;
 
@@ -47,7 +57,7 @@ void signal_change() {
     return;
   }
   current_time = micros();
-  long delta = current_time - prev_time;
+  delta = current_time - prev_time;
   if (delta > 0 ) {
     time_between_pulses_micro_seconds = smooth_input(delta);
   }
@@ -70,9 +80,9 @@ void pwm_signal_read() {
     if (throttle < -TOP_SPEED) { throttle = -TOP_SPEED; }
 
     // For now no dead_zone
-    if ((throttle <= DEAD_ZONE_THRESH) && (throttle >= 0.0f - DEAD_ZONE_THRESH)) {
-      throttle = 0.0;
-    }
+    // if ((throttle <= DEAD_ZONE_THRESH) && (throttle >= 0.0f - DEAD_ZONE_THRESH)) {
+    //   throttle = 0.0;
+    // }
   }
   disconnect_counter += 1;
 }
@@ -136,11 +146,14 @@ void setup() {
   motor.LPF_velocity.Tf = LOW_PASS_FILTER;
 
 
+  if (SKIP_CALIBRATION) {
+    if (this_motor == LEFT_MOTOR) {
+      motor.sensor_direction = Direction::CCW;
 
-  // TODO These values need to be set depending which side 
-  // the motor is on to prevent direction search calibration.
-  // motor.sensor_direction = Direction::CCW;
-  // motor.zero_electric_angle = 5.0759;
+    } else if (this_motor == RIGHT_MOTOR) {
+      motor.sensor_direction = Direction::CW;
+    }
+  }
 
 
   // CURRENT SENSOR
@@ -163,6 +176,8 @@ void loop() {
   motor.move(throttle);
 
   if (MONITOR) {
+    Serial.print(delta);
+    Serial.print("    ");
     Serial.print(time_between_pulses_micro_seconds);
     Serial.print("    ");
     Serial.println(throttle);
