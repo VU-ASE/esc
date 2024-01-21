@@ -1,22 +1,11 @@
 #include <SimpleFOC.h>
 
-
-
 BLDCMotor motor = BLDCMotor(7);
 BLDCDriver6PWM driver = BLDCDriver6PWM(A_PHASE_UH, A_PHASE_UL, A_PHASE_VH, A_PHASE_VL, A_PHASE_WH, A_PHASE_WL);
 
 LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0/7.0, A_OP1_OUT, A_OP2_OUT, A_OP3_OUT);
 MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
-
-// This makes the motors warm, removing plastic from Motor shaft would make this ok.
-#define MAX_VOLTAGE 2.7
-#define MAX_CURRENT 7.0
-
-// Could value for Current setup
-#define LOW_PASS_FILTER 0.1
-#define SENSOR_ALIGN_VOLTAGE 1.0
-#define MOTION_DOWN_SAMPLE 0.0
 
 
 #define MONITOR false
@@ -69,60 +58,39 @@ void signal_change() {
 #define DEAD_ZONE_THRESH 1.0f
 
 void pwm_signal_read() {
-	if (disconnect_counter > 200) {
-		throttle = 0.0f;
-		return;
-	}
+  if (disconnect_counter > 200) {
+    throttle = 0.0f;
+    return;
+  }
 
-	if (time_between_pulses_micro_seconds <= PULSE_HIGH_END && time_between_pulses_micro_seconds >= PULSE_LOW_END) {
-		throttle = (((time_between_pulses_micro_seconds - PULSE_LOW_END) / (float) (PULSE_HIGH_END - PULSE_LOW_END)) * 2.0f * TOP_SPEED) - TOP_SPEED;
+  if (time_between_pulses_micro_seconds <= PULSE_HIGH_END && time_between_pulses_micro_seconds >= PULSE_LOW_END) {
+    throttle = (((time_between_pulses_micro_seconds - PULSE_LOW_END) / (float) (PULSE_HIGH_END - PULSE_LOW_END)) * 2.0f * TOP_SPEED) - TOP_SPEED;
 
-		if (throttle > TOP_SPEED) { throttle = TOP_SPEED; }
-		if (throttle < -TOP_SPEED) { throttle = -TOP_SPEED; }
+    if (throttle > TOP_SPEED) { throttle = TOP_SPEED; }
+    if (throttle < -TOP_SPEED) { throttle = -TOP_SPEED; }
 
     // For now no dead_zone
-		if ((throttle <= DEAD_ZONE_THRESH) && (throttle >= 0.0f - DEAD_ZONE_THRESH)) {
+    if ((throttle <= DEAD_ZONE_THRESH) && (throttle >= 0.0f - DEAD_ZONE_THRESH)) {
       throttle = 0.0;
-		}
-
-	}
-
-	disconnect_counter += 1;
+    }
+  }
+  disconnect_counter += 1;
 }
-
-
 
 
 void pwm_signal_init() {
-	pinMode(A_PWM, INPUT);
-	attachInterrupt(digitalPinToInterrupt(A_PWM), signal_change, CHANGE);
+  pinMode(A_PWM, INPUT);
+  attachInterrupt(digitalPinToInterrupt(A_PWM), signal_change, CHANGE);
 }
 
+// This makes the motors warm, removing plastic from Motor shaft would make this ok.
+#define MAX_VOLTAGE 2.7
+#define MAX_CURRENT 7.0
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Could value for Current setup
+#define LOW_PASS_FILTER 0.1
+#define SENSOR_ALIGN_VOLTAGE 1.0
+#define MOTION_DOWN_SAMPLE 0.0
 
 Commander command = Commander(Serial);
 void doMotor(char* cmd) { command.motor(&motor, cmd); }
@@ -135,12 +103,7 @@ void setup() {
     Serial.print("TOP_SPEED: ");
     Serial.println(TOP_SPEED);
     Serial.println("--------------");
-    // motor.useMonitoring(Serial);
-    // motor.monitor_downsample = MOTION_DOWN_SAMPLE;
-    // command.add('M', doMotor, "motor");
-    // command.add('A', doMotor, "my motor");
   }
-
 
   // INIT FOR READING PWM
   pinMode(A_PWM, INPUT);
@@ -193,44 +156,16 @@ void setup() {
 }
 
 
-
-
-
-
-
-
-#define DEAD_ZONE_THRESH 0.03
-float target = 0.0;
-
 void loop() {
   pwm_signal_read();
 
-
-  float target = throttle;
-
-
-  // float target = throttle * TOP_SPEED;
-  // float target = throttle;
-  
-  // target = val * TOP_SPEED;
-
-  // TODO TUNE this
-  // if (target <= DEAD_ZONE_THRESH && target >= 0.0f - DEAD_ZONE_THRESH) {
-  //   target = 0.0;
-  // }
-
-
   motor.loopFOC();
-  motor.move(target);
-
+  motor.move(throttle);
 
   if (MONITOR) {
     Serial.print(time_between_pulses_micro_seconds);
     Serial.print("    ");
-    Serial.println(target);
-
-    // motor.monitor();
-    // command.run();
+    Serial.println(throttle);
   }
 }
 
