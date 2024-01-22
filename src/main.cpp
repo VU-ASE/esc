@@ -7,8 +7,8 @@ LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0/7.0, A_OP1_O
 MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
 
-#define MONITOR true
-#define SKIP_CALIBRATION false
+#define MONITOR false
+#define DO_CALIBRATION false
 
 enum WhichMotor {
   LEFT_MOTOR,
@@ -146,7 +146,7 @@ void setup() {
   motor.LPF_velocity.Tf = LOW_PASS_FILTER;
 
 
-  if (SKIP_CALIBRATION) {
+  if (DO_CALIBRATION) {
     if (this_motor == LEFT_MOTOR) {
       motor.sensor_direction = Direction::CCW;
 
