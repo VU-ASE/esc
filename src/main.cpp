@@ -106,6 +106,15 @@ Commander command = Commander(Serial);
 void doMotor(char* cmd) { command.motor(&motor, cmd); }
 
 void setup() {
+
+
+  // initialize timers for PWM reading
+  // TIMER_TONE
+  // TIMER_SERVO
+
+
+
+
   if (MONITOR) {
     Serial.begin(115200);
     SimpleFOCDebug::enable(&Serial);
