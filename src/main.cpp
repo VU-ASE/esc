@@ -6,8 +6,19 @@ BLDCDriver6PWM driver = BLDCDriver6PWM(A_PHASE_UH, A_PHASE_UL, A_PHASE_VH, A_PHA
 LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0/7.0, A_OP1_OUT, A_OP2_OUT, A_OP3_OUT);
 MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
+HardwareTimer *timer = new HardwareTimer(TIM2);
 
-#define MONITOR false
+
+// The following don't work :(
+  // TIM1 - All formats
+  // TIM2 - All formats
+  // TIMER_SERVO - All formats
+  // TIMER_TONE - All formats
+
+
+ 
+
+#define MONITOR true
 #define DO_CALIBRATION false
 
 enum WhichMotor {
@@ -49,19 +60,31 @@ volatile long time_between_pulses_micro_seconds = 0;
 
 float throttle = 0.0;
 
-void signal_change() {
-  disconnect_counter = 0;
-  int current_state = digitalRead(A_PWM);
-  if (current_state == HIGH) {
-    prev_time = micros();
-    return;
-  }
-  current_time = micros();
-  delta = current_time - prev_time;
-  if (delta > 0 ) {
-    time_between_pulses_micro_seconds = smooth_input(delta);
-  }
-}
+
+
+
+// uint32_t custom_timer() {
+//   // timer->pause();
+//   uint32_t res = timer->getCount(MICROSEC_FORMAT);
+//   // timer->resume();
+//   // timer->setCount(0);
+//   // return micros();
+//   return res;
+// }
+
+// void signal_change() {
+//   disconnect_counter = 0;
+//   int current_state = digitalRead(A_PWM);
+//   if (current_state == HIGH) {
+//     prev_time = custom_timer();
+//     return;
+//   }
+//   current_time = custom_timer();
+//   delta = current_time - prev_time;
+//   // if (delta > 0 ) {
+//   //   time_between_pulses_micro_seconds = smooth_input(delta);
+//   // }
+// }
 
 
 
@@ -90,7 +113,24 @@ void pwm_signal_read() {
 
 void pwm_signal_init() {
   pinMode(A_PWM, INPUT);
-  attachInterrupt(digitalPinToInterrupt(A_PWM), signal_change, CHANGE);
+
+  timer->setMode(0, TIMER_INPUT_CAPTURE_BOTHEDGE, A_PWM);
+  timer->setOverflow(10000, MICROSEC_FORMAT);
+  timer->resume();
+
+  // USE THIS 
+  // https://github.com/stm32duino/STM32Examples/blob/main/examples/Peripherals/HardwareTimer/Frequency_Dutycycle_measurement/Frequency_Dutycycle_measurement.ino
+  
+  
+  
+  // attachInterrupt(digitalPinToInterrupt(A_PWM), signal_change, CHANGE);
+  
+  // digitalPinToInterrupt(A_PWM) 
+
+
+  // todo: attach interrupt to timer2
+  // todo: set time_between_pulses_micro_seconds to be pulses
+
 }
 
 // This makes the motors warm, removing plastic from Motor shaft would make this ok.
@@ -106,15 +146,6 @@ Commander command = Commander(Serial);
 void doMotor(char* cmd) { command.motor(&motor, cmd); }
 
 void setup() {
-
-
-  // initialize timers for PWM reading
-  // TIMER_TONE
-  // TIMER_SERVO
-
-
-
-
   if (MONITOR) {
     Serial.begin(115200);
     SimpleFOCDebug::enable(&Serial);
@@ -174,6 +205,9 @@ void setup() {
   motor.init();
   motor.initFOC();
 
+  timer->resume();
+  // timer->setCount(0);
+
   _delay(1000);
 }
 
@@ -186,14 +220,11 @@ void loop() {
 
   if (MONITOR) {
     Serial.print(delta);
-    Serial.print("    ");
-    Serial.print(time_between_pulses_micro_seconds);
-    Serial.print("    ");
-    Serial.println(throttle);
+    Serial.println("    ");
+    // Serial.print(time_between_pulses_micro_seconds);
+    // Serial.print("    ");
+    // Serial.println(throttle);
   }
 }
-
-
-
 
 
