@@ -1,4 +1,8 @@
 #include <SimpleFOC.h>
+#include "pwm_input.h"
+#include "pwm_naive.h"
+
+
 
 BLDCMotor motor = BLDCMotor(7);
 BLDCDriver6PWM driver = BLDCDriver6PWM(A_PHASE_UH, A_PHASE_UL, A_PHASE_VH, A_PHASE_VL, A_PHASE_WH, A_PHASE_WL);
@@ -6,14 +10,7 @@ BLDCDriver6PWM driver = BLDCDriver6PWM(A_PHASE_UH, A_PHASE_UL, A_PHASE_VH, A_PHA
 LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0/7.0, A_OP1_OUT, A_OP2_OUT, A_OP3_OUT);
 MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
-HardwareTimer *timer = new HardwareTimer(TIM2);
 
-
-// The following don't work :(
-  // TIM1 - All formats
-  // TIM2 - All formats
-  // TIMER_SERVO - All formats
-  // TIMER_TONE - All formats
 
 
  
@@ -52,10 +49,9 @@ long smooth_input(long new_value) {
 
 #define TOP_SPEED 150.0
 
-volatile long prev_time = 0;
-volatile long current_time = 0;
-volatile long delta = 0;
-volatile long disconnect_counter = 0;
+// volatile long prev_time = 0;
+// volatile long current_time = 0;
+// volatile long disconnect_counter = 0;
 volatile long time_between_pulses_micro_seconds = 0;
 
 float throttle = 0.0;
@@ -88,35 +84,34 @@ float throttle = 0.0;
 
 
 
-#define DEAD_ZONE_THRESH 1.0f
+// #define DEAD_ZONE_THRESH 1.0f
 
-void pwm_signal_read() {
-  if (disconnect_counter > 200) {
-    throttle = 0.0f;
-    return;
-  }
+// void pwm_signal_read() {
+//   if (disconnect_counter > 200) {
+//     throttle = 0.0f;
+//     return;
+//   }
 
-  if (time_between_pulses_micro_seconds <= PULSE_HIGH_END && time_between_pulses_micro_seconds >= PULSE_LOW_END) {
-    throttle = (((time_between_pulses_micro_seconds - PULSE_LOW_END) / (float) (PULSE_HIGH_END - PULSE_LOW_END)) * 2.0f * TOP_SPEED) - TOP_SPEED;
+//   if (time_between_pulses_micro_seconds <= PULSE_HIGH_END && time_between_pulses_micro_seconds >= PULSE_LOW_END) {
+//     throttle = (((time_between_pulses_micro_seconds - PULSE_LOW_END) / (float) (PULSE_HIGH_END - PULSE_LOW_END)) * 2.0f * TOP_SPEED) - TOP_SPEED;
 
-    if (throttle > TOP_SPEED) { throttle = TOP_SPEED; }
-    if (throttle < -TOP_SPEED) { throttle = -TOP_SPEED; }
+//     if (throttle > TOP_SPEED) { throttle = TOP_SPEED; }
+//     if (throttle < -TOP_SPEED) { throttle = -TOP_SPEED; }
 
-    // For now no dead_zone
-    // if ((throttle <= DEAD_ZONE_THRESH) && (throttle >= 0.0f - DEAD_ZONE_THRESH)) {
-    //   throttle = 0.0;
-    // }
-  }
-  disconnect_counter += 1;
-}
+//     // For now no dead_zone
+//     // if ((throttle <= DEAD_ZONE_THRESH) && (throttle >= 0.0f - DEAD_ZONE_THRESH)) {
+//     //   throttle = 0.0;
+//     // }
+//   }
+//   disconnect_counter += 1;
+// }
 
 
-void pwm_signal_init() {
-  pinMode(A_PWM, INPUT);
-
-  timer->setMode(0, TIMER_INPUT_CAPTURE_BOTHEDGE, A_PWM);
-  timer->setOverflow(10000, MICROSEC_FORMAT);
-  timer->resume();
+// void pwm_signal_init() {
+  // pinMode(A_PWM, INPUT);
+  // timer->setMode(0, TIMER_INPUT_CAPTURE_BOTHEDGE, A_PWM);
+  // timer->setOverflow(10000, MICROSEC_FORMAT);
+  // timer->resume();
 
   // USE THIS 
   // https://github.com/stm32duino/STM32Examples/blob/main/examples/Peripherals/HardwareTimer/Frequency_Dutycycle_measurement/Frequency_Dutycycle_measurement.ino
@@ -131,7 +126,7 @@ void pwm_signal_init() {
   // todo: attach interrupt to timer2
   // todo: set time_between_pulses_micro_seconds to be pulses
 
-}
+// }
 
 // This makes the motors warm, removing plastic from Motor shaft would make this ok.
 #define MAX_VOLTAGE 2.7
@@ -156,8 +151,7 @@ void setup() {
   }
 
   // INIT FOR READING PWM
-  pinMode(A_PWM, INPUT);
-  pwm_signal_init();
+  pwm_signal_init_naive();
 
 
   // MAGNETIC SENSOR INIT
@@ -205,16 +199,11 @@ void setup() {
   motor.init();
   motor.initFOC();
 
-  timer->resume();
-  // timer->setCount(0);
-
   _delay(1000);
 }
 
 
 void loop() {
-  pwm_signal_read();
-
   motor.loopFOC();
   motor.move(throttle);
 
