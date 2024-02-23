@@ -10,15 +10,16 @@ MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
 
 #define MONITOR false
-#define DO_CALIBRATION false
+#define SKIP_CALIBRATION false
 
-enum WhichMotor {
-  LEFT_MOTOR,
-  RIGHT_MOTOR
-};
+// enum WhichMotor {
+//   LEFT_MOTOR,
+//   RIGHT_MOTOR
+// };
 
 // CHANGE THIS DEPENDING ON WHICH MOTOR YOU ARE FLASHING
-enum WhichMotor this_motor = RIGHT_MOTOR;
+// enum WhichMotor this_motor = RIGHT_MOTOR;
+// enum WhichMotor this_motor = RIGHT_MOTOR;
 
 
 #define TOP_SPEED 150.0
@@ -71,14 +72,15 @@ void setup() {
   motor.LPF_velocity.Tf = LOW_PASS_FILTER;
 
 
-  if (DO_CALIBRATION) {
-    if (this_motor == LEFT_MOTOR) {
-      motor.sensor_direction = Direction::CCW;
+  // for now always calibrate, because it was giving issues with one esc
+  // if (SKIP_CALIBRATION) {
+  //   if (this_motor == LEFT_MOTOR) {
+  //     motor.sensor_direction = Direction::CCW;
 
-    } else if (this_motor == RIGHT_MOTOR) {
-      motor.sensor_direction = Direction::CW;
-    }
-  }
+  //   } else if (this_motor == RIGHT_MOTOR) {
+  //     motor.sensor_direction = Direction::CW;
+  //   }
+  // }
 
   // CURRENT SENSOR
   currentSense.linkDriver(&driver);
