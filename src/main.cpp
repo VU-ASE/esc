@@ -66,8 +66,8 @@ float throttle = 0.0;
 //   // timer->setCount(0);
 //   // return micros();
 //   return res;
-// }
 
+// }
 // void signal_change() {
 //   disconnect_counter = 0;
 //   int current_state = digitalRead(A_PWM);
