@@ -151,7 +151,7 @@ void setup() {
   }
 
   // INIT FOR READING PWM
-  pwm_signal_init_naive();
+  
 
 
   // MAGNETIC SENSOR INIT
@@ -199,7 +199,9 @@ void setup() {
   motor.init();
   motor.initFOC();
 
-  _delay(1000);
+  pwm_input_init();
+
+  _delay(1500);
 }
 
 
@@ -208,10 +210,10 @@ void loop() {
   motor.move(throttle);
 
   if (MONITOR) {
-    Serial.print(delta);
-    Serial.println("    ");
-    // Serial.print(time_between_pulses_micro_seconds);
+    // Serial.print(frequency_measured);
     // Serial.print("    ");
+    // Serial.print(dutycycle_measured);
+    // Serial.println("    ");
     // Serial.println(throttle);
   }
 }

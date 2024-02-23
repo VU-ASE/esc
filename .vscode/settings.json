@@ -1,6 +1,7 @@
 {
 	"files.associations": {
 		"temp": "cpp",
-		"pinnamesvar.h": "c"
+		"pinnamesvar.h": "c",
+		"ostream": "cpp"
 	}
 }
