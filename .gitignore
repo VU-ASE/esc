@@ -1,4 +1,5 @@
 .pio/build
+.pio/libdeps/disco_b_g431b_esc1/Simple FOC/.github
 .pio/build/*
 
 .vscode/.browse.c_cpp.db*
