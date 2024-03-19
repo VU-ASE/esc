@@ -10,15 +10,15 @@ MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
 
 #define MONITOR false
-#define SKIP_CALIBRATION false
+#define SKIP_CALIBRATION true
 
-// enum WhichMotor {
-//   LEFT_MOTOR,
-//   RIGHT_MOTOR
-// };
+enum WhichMotor {
+  LEFT_MOTOR,
+  RIGHT_MOTOR
+};
 
 // CHANGE THIS DEPENDING ON WHICH MOTOR YOU ARE FLASHING
-// enum WhichMotor this_motor = RIGHT_MOTOR;
+enum WhichMotor this_motor = LEFT_MOTOR;
 // enum WhichMotor this_motor = RIGHT_MOTOR;
 
 
@@ -73,15 +73,16 @@ void setup() {
   motor.LPF_velocity.Tf = LOW_PASS_FILTER;
 
 
-  // for now always calibrate, because it was giving issues with one esc
-  // if (SKIP_CALIBRATION) {
-  //   if (this_motor == LEFT_MOTOR) {
-  //     motor.sensor_direction = Direction::CCW;
+  if (SKIP_CALIBRATION) {
+    if (this_motor == LEFT_MOTOR) {
+      motor.sensor_direction = Direction::CCW;
+      motor.zero_electric_angle = 3.60;
+    } else if (this_motor == RIGHT_MOTOR) {
+      motor.sensor_direction = Direction::CW;
+      motor.zero_electric_angle = 3.60;
+    }
+  }
 
-  //   } else if (this_motor == RIGHT_MOTOR) {
-  //     motor.sensor_direction = Direction::CW;
-  //   }
-  // }
 
   // CURRENT SENSOR
   currentSense.linkDriver(&driver);
@@ -91,6 +92,14 @@ void setup() {
 
   motor.init();
   motor.initFOC();
+
+
+  // Serial.print("motor.zero_electric_angle:   ");
+  // Serial.println(motor.zero_electric_angle);
+  // Serial.print("motor.sensor_direction:   ");
+  // Serial.println(motor.sensor_direction);
+  // while (true) {}
+
 
   pwm_input_init();
 
