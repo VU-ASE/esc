@@ -38,6 +38,8 @@ void doMotor(char* cmd) { command.motor(&motor, cmd); }
 
 void setup() {
 
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
 
   Serial.begin(115200);
   SimpleFOCDebug::enable(&Serial);
@@ -75,9 +77,11 @@ void setup() {
 
   if (SKIP_CALIBRATION) {
     if (this_motor == LEFT_MOTOR) {
+      // wires are NOT color-aligned!
       motor.sensor_direction = Direction::CCW;
       motor.zero_electric_angle = 3.60;
     } else if (this_motor == RIGHT_MOTOR) {
+      // wires are color-aligned!
       motor.sensor_direction = Direction::CW;
       motor.zero_electric_angle = 3.60;
     }
@@ -100,10 +104,17 @@ void setup() {
   // Serial.println(motor.sensor_direction);
   // while (true) {}
 
-
   pwm_input_init();
 
-  _delay(1500);
+  for (int i = 0; i < 10; i++) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    digitalWrite(LED_RED, HIGH);
+    _delay(50);
+    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(LED_RED, LOW);
+    _delay(50);
+  }
+
 }
 
 
