@@ -10,7 +10,7 @@ MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
 
 #define MONITOR false
-#define SKIP_CALIBRATION true
+#define SKIP_CALIBRATION false
 
 enum WhichMotor {
   LEFT_MOTOR,
@@ -18,15 +18,15 @@ enum WhichMotor {
 };
 
 // CHANGE THIS DEPENDING ON WHICH MOTOR YOU ARE FLASHING
-enum WhichMotor this_motor = LEFT_MOTOR;
-// enum WhichMotor this_motor = RIGHT_MOTOR;
+enum WhichMotor this_motor = LEFT_MOTOR; // YELLOW + WIRE SWITCH
+// enum WhichMotor this_motor = RIGHT_MOTOR; // BLUE
 
 
 #define TOP_SPEED 150.0
 float throttle = 0.0;
 
 #define MAX_VOLTAGE 2.7
-#define MAX_CURRENT 7.0
+#define MAX_CURRENT 5.0
 
 // Could value for Current setup
 #define LOW_PASS_FILTER 0.1
@@ -56,7 +56,7 @@ void setup() {
 
 
   // DRIVER INIT
-  driver.voltage_power_supply = 16;
+  driver.voltage_power_supply = 15;
   driver.init();
   motor.linkDriver(&driver);
 
@@ -79,11 +79,11 @@ void setup() {
     if (this_motor == LEFT_MOTOR) {
       // wires are NOT color-aligned!
       motor.sensor_direction = Direction::CCW;
-      motor.zero_electric_angle = 3.60;
+      motor.zero_electric_angle = 3.65;
     } else if (this_motor == RIGHT_MOTOR) {
       // wires are color-aligned!
       motor.sensor_direction = Direction::CW;
-      motor.zero_electric_angle = 3.60;
+      motor.zero_electric_angle = 3.65;
     }
   }
 
@@ -95,14 +95,35 @@ void setup() {
 
 
   motor.init();
-  motor.initFOC();
+  int init_success = motor.initFOC();
+
+  if (motor.zero_electric_angle < 1.0 || motor.zero_electric_angle > 5.0) {
+    init_success = 0;
+  }
 
 
-  // Serial.print("motor.zero_electric_angle:   ");
-  // Serial.println(motor.zero_electric_angle);
-  // Serial.print("motor.sensor_direction:   ");
-  // Serial.println(motor.sensor_direction);
-  // while (true) {}
+  if (!init_success) {
+    if (MONITOR) {
+      Serial.print("---INIT FOC FAILED---");
+    }
+
+    while (true) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      digitalWrite(LED_RED, HIGH);
+      _delay(50);
+      digitalWrite(LED_BUILTIN, LOW);
+      digitalWrite(LED_RED, LOW);
+      _delay(50);
+    }
+  }
+
+
+  if (MONITOR) {
+    Serial.print(">>> motor.zero_electric_angle:   ");
+    Serial.println(motor.zero_electric_angle);
+    Serial.print(">>> motor.sensor_direction:   ");
+    Serial.println(motor.sensor_direction);
+  }
 
   pwm_input_init();
 
@@ -128,12 +149,12 @@ void loop() {
   motor.loopFOC();
   motor.move(throttle);
 
-  if (MONITOR) {
-    Serial.print(adjusted_duty);
-    Serial.print("    ");
-    Serial.print(throttle);
-    Serial.println("    ");
-  }
+  // if (MONITOR) {
+  //   Serial.print(adjusted_duty);
+  //   Serial.print("    ");
+  //   Serial.print(throttle);
+  //   Serial.println("    ");
+  // }
 }
 
 
