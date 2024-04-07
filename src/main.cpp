@@ -9,7 +9,7 @@ LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0/7.0, A_OP1_O
 MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
 
-#define MONITOR false
+#define MONITOR true
 #define SKIP_CALIBRATION false
 
 enum WhichMotor {
@@ -18,8 +18,8 @@ enum WhichMotor {
 };
 
 // CHANGE THIS DEPENDING ON WHICH MOTOR YOU ARE FLASHING
-enum WhichMotor this_motor = LEFT_MOTOR; // YELLOW + WIRE SWITCH
-// enum WhichMotor this_motor = RIGHT_MOTOR; // BLUE
+enum WhichMotor this_motor = LEFT_MOTOR; // BLUE + WIRE SWITCH
+// enum WhichMotor this_motor = RIGHT_MOTOR; // YELLOW
 
 
 #define TOP_SPEED 150.0
@@ -97,10 +97,6 @@ void setup() {
   motor.init();
   int init_success = motor.initFOC();
 
-  if (motor.zero_electric_angle < 1.0 || motor.zero_electric_angle > 5.0) {
-    init_success = 0;
-  }
-
 
   if (!init_success) {
     if (MONITOR) {
@@ -116,6 +112,24 @@ void setup() {
       _delay(50);
     }
   }
+
+  // if (motor.zero_electric_angle < 2.0 || motor.zero_electric_angle > 5.0) {
+  //   if (MONITOR) {
+  //     Serial.print("---zero_electric_angle outside of 1,5 range---");
+  //   }
+
+  //   while (true) {
+  //     digitalWrite(LED_BUILTIN, HIGH);
+  //     digitalWrite(LED_RED, HIGH);
+  //     _delay(300);
+  //     digitalWrite(LED_BUILTIN, LOW);
+  //     digitalWrite(LED_RED, LOW);
+  //     _delay(10);
+  //   }
+  // }
+
+
+  
 
 
   if (MONITOR) {
