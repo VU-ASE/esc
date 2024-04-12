@@ -70,7 +70,6 @@ void setup() {
 
 
   // MOTOR PID SETTINGS - TODO TUNE THESE MORE
-  // motor.PID_velocity.P = 0.10;
   motor.PID_velocity.P = 0.10;
   motor.PID_velocity.I = 0.9;
   motor.LPF_velocity.Tf = LOW_PASS_FILTER;
