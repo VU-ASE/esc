@@ -22,7 +22,7 @@ enum WhichMotor this_motor = LEFT_MOTOR; // BLUE + WIRE SWITCH
 // enum WhichMotor this_motor = RIGHT_MOTOR; // YELLOW
 
 
-#define TOP_SPEED 150.0
+#define TOP_SPEED 250.0
 float throttle = 0.0;
 
 #define MAX_VOLTAGE 2.7
@@ -70,7 +70,7 @@ void setup() {
 
 
   // MOTOR PID SETTINGS - TODO TUNE THESE MORE
-  motor.PID_velocity.P = 0.15;
+  motor.PID_velocity.P = 0.10;
   motor.PID_velocity.I = 0.9;
   motor.LPF_velocity.Tf = LOW_PASS_FILTER;
 
@@ -154,10 +154,12 @@ void setup() {
 
 
 void loop() {
-  if (adjusted_duty < 100 || adjusted_duty > 200) {
+  uint32_t local_adjusted_duty = adjusted_duty;
+
+  if (local_adjusted_duty < 100 || local_adjusted_duty > 200) {
     throttle = 0.0;
   } else {
-    throttle = ((float) (adjusted_duty-100) / 100.0) * (TOP_SPEED * 2) - TOP_SPEED;
+    throttle = ((float) (local_adjusted_duty-100) / 100.0) * (TOP_SPEED * 2) - TOP_SPEED;
   }
 
   motor.loopFOC();
@@ -170,4 +172,5 @@ void loop() {
   //   Serial.println("    ");
   // }
 }
+
 

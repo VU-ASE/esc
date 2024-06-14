@@ -6,56 +6,72 @@
 #define pin A_PWM
 
 uint32_t channel_rising, channel_falling;
-volatile uint32_t frequency_measured, adjusted_duty, last_period_capture = 0, current_capture, high_state_measured;
+volatile uint32_t frequency_measured, adjusted_duty = 150, last_period_capture = 0;
 uint32_t input_freq = 0;
 volatile uint32_t rollover_compare_count = 0;
 HardwareTimer *timer;
 
+volatile uint32_t first_rise = 0, first_fall = 0, second_rise = 0;
+
 #define MAGIC_OFFSET 69 + 100
 
-void signal_rising_callback(void) {
-  current_capture = timer->getCaptureCompare(channel_rising);
-  /* frequency computation */
-  if (current_capture > last_period_capture) {
-    // frequency_measured = input_freq / (current_capture - last_period_capture);
-    adjusted_duty = (high_state_measured * 1600) / (current_capture - last_period_capture) - MAGIC_OFFSET;
-  } else if (current_capture <= last_period_capture) {
-    /* 0x1000 is max overflow value */
-    // frequency_measured = input_freq / (0x10000 + current_capture - last_period_capture);
-    adjusted_duty = (high_state_measured * 1600) / (0x10000 + current_capture - last_period_capture) - MAGIC_OFFSET;
+#define MAGIC_TOTAL_PERIOD 20000
+#define MAGIC_OFFSET_PERIOD 400
+
+void signal_rising_callback(void)
+{
+  first_rise = second_rise;
+  second_rise = timer->getCaptureCompare(channel_rising);
+
+  // The first and second rise are a sliding window, only when they are both defined in increasing order we have a
+  if (second_rise > first_rise && first_rise != 0 && second_rise != 0 && first_fall > first_rise && first_fall < second_rise)
+  {
+    // uint32_t total_period = second_rise - first_rise;
+    uint32_t total_period = 20100;
+    uint32_t high_period = first_fall - first_rise;
+
+
+    // if (total_period < (MAGIC_TOTAL_PERIOD - MAGIC_OFFSET_PERIOD) || total_period > (MAGIC_TOTAL_PERIOD + MAGIC_OFFSET)) {
+    //   first_rise = 0;
+    //   second_rise = 0;
+    //   first_fall = 0;
+    //   return;
+    // }
+
+    adjusted_duty = (high_period * 1600) / (total_period)-MAGIC_OFFSET;
+    
+    // Serial.print("high_period:    ");
+    // Serial.println(high_period);
+    // Serial.print("total_period:    ");
+    // Serial.println(total_period);
   }
 
-  last_period_capture = current_capture;
   rollover_compare_count = 0;
 }
 
 /* In case of timer rollover, frequency is to low to be measured set values to 0
    To reduce minimum frequency, it is possible to increase prescaler. But this is at a cost of precision. */
-void rollover_callback(void) {
+void rollover_callback(void)
+{
   rollover_compare_count++;
 
-  if (rollover_compare_count > 1) {
+  if (rollover_compare_count > 1)
+  {
     // frequency_measured = 0;
     adjusted_duty = 0;
+    first_rise = 0;
+    second_rise = 0;
+    first_fall = 0;
   }
 }
 
-
-void signal_falling_callback(void) {
-  /* prepare DutyCycle computation */
-  current_capture = timer->getCaptureCompare(channel_falling);
-
-  if (current_capture > last_period_capture) {
-    high_state_measured = current_capture - last_period_capture;
-  } else if (current_capture <= last_period_capture) {
-    /* 0x1000 is max overflow value */
-    high_state_measured = 0x10000 + current_capture - last_period_capture;
-  }
+void signal_falling_callback(void)
+{
+  first_fall = timer->getCaptureCompare(channel_falling);
 }
 
-
-
-void pwm_input_init() {
+void pwm_input_init()
+{
   pinMode(pin, INPUT);
 
   TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(pin), PinMap_PWM);
@@ -63,19 +79,20 @@ void pwm_input_init() {
 
   // channel_risings come by pair for TIMER_INPUT_FREQ_DUTY_MEASUREMENT mode:
   // channel_rising1 is associated to channel_falling and channel_rising3 is associated with channel_rising4
-  switch (channel_rising) {
-    case 1:
-      channel_falling = 2;
-      break;
-    case 2:
-      channel_falling = 1;
-      break;
-    case 3:
-      channel_falling = 4;
-      break;
-    case 4:
-      channel_falling = 3;
-      break;
+  switch (channel_rising)
+  {
+  case 1:
+    channel_falling = 2;
+    break;
+  case 2:
+    channel_falling = 1;
+    break;
+  case 3:
+    channel_falling = 4;
+    break;
+  case 4:
+    channel_falling = 3;
+    break;
   }
 
   timer = new HardwareTimer(Instance);
@@ -89,14 +106,12 @@ void pwm_input_init() {
   timer->attachInterrupt(channel_rising, signal_rising_callback);
   timer->attachInterrupt(channel_falling, signal_falling_callback);
   timer->attachInterrupt(rollover_callback);
-  
+
   timer->refresh();
   timer->resume();
 
   // Compute this scale factor only once
   input_freq = timer->getTimerClkFreq() / timer->getPrescaleFactor();
 }
-
-
 
 #endif
