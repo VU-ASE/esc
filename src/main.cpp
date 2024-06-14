@@ -22,7 +22,7 @@ enum WhichMotor this_motor = LEFT_MOTOR; // BLUE + WIRE SWITCH
 // enum WhichMotor this_motor = RIGHT_MOTOR; // YELLOW
 
 
-#define TOP_SPEED 250.0
+#define TOP_SPEED 150.0
 float throttle = 0.0;
 
 #define MAX_VOLTAGE 2.7
@@ -70,7 +70,7 @@ void setup() {
 
 
   // MOTOR PID SETTINGS - TODO TUNE THESE MORE
-  motor.PID_velocity.P = 0.10;
+  motor.PID_velocity.P = 0.15;
   motor.PID_velocity.I = 0.9;
   motor.LPF_velocity.Tf = LOW_PASS_FILTER;
 
