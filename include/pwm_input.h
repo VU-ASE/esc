@@ -6,7 +6,7 @@
 #define pin A_PWM
 
 uint32_t channel_rising, channel_falling;
-volatile uint32_t frequency_measured, adjusted_duty = 150, last_period_capture = 0;
+volatile uint32_t frequency_measured, adjusted_duty = 150, last_total_period = 0;
 uint32_t input_freq = 0;
 volatile uint32_t rollover_compare_count = 0;
 HardwareTimer *timer;
@@ -15,8 +15,7 @@ volatile uint32_t first_rise = 0, first_fall = 0, second_rise = 0;
 
 #define MAGIC_OFFSET 69 + 100
 
-#define MAGIC_TOTAL_PERIOD 20000
-#define MAGIC_OFFSET_PERIOD 400
+#define MAX_ALLOWED_DIFFERENCE 100
 
 void signal_rising_callback(void)
 {
@@ -24,26 +23,19 @@ void signal_rising_callback(void)
   second_rise = timer->getCaptureCompare(channel_rising);
 
   // The first and second rise are a sliding window, only when they are both defined in increasing order we have a
-  if (second_rise > first_rise && first_rise != 0 && second_rise != 0 && first_fall > first_rise && first_fall < second_rise)
-  {
-    // uint32_t total_period = second_rise - first_rise;
-    uint32_t total_period = 20100;
+  if (second_rise > first_rise && first_rise != 0 && second_rise != 0 && first_fall > first_rise && first_fall < second_rise) {
+    uint32_t total_period = second_rise - first_rise;
     uint32_t high_period = first_fall - first_rise;
+    
 
+    if (total_period > MAX_ALLOWED_DIFFERENCE + last_total_period  || total_period < last_total_period - MAX_ALLOWED_DIFFERENCE) {
+      last_total_period = total_period;
+      return;
+    }
 
-    // if (total_period < (MAGIC_TOTAL_PERIOD - MAGIC_OFFSET_PERIOD) || total_period > (MAGIC_TOTAL_PERIOD + MAGIC_OFFSET)) {
-    //   first_rise = 0;
-    //   second_rise = 0;
-    //   first_fall = 0;
-    //   return;
-    // }
+    last_total_period = total_period;
 
     adjusted_duty = (high_period * 1600) / (total_period)-MAGIC_OFFSET;
-    
-    // Serial.print("high_period:    ");
-    // Serial.println(high_period);
-    // Serial.print("total_period:    ");
-    // Serial.println(total_period);
   }
 
   rollover_compare_count = 0;
