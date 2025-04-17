@@ -32,5 +32,8 @@ flash: check-sudo info
 build:
 	platformio run
 
+flash-manual:
+	platformio run --target upload
+
 
 
