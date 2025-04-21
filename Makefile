@@ -29,11 +29,15 @@ flash: check-sudo info
 
 # Builds the source code into the .pio folder
 # (but this does not flash it yet, nor does it produce a firmware.bin file)
-build:
+build: check-sudo
 	platformio run
 
-flash-manual:
+flash-manual: check-sudo
 	platformio run --target upload
 
+find:
+	platformio device list
 
+debug:
+	platforio device monitor
 

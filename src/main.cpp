@@ -16,7 +16,7 @@
 #include <SimpleFOC.h>
 #include "pwm_input.h"
 // Enable debugging over serial - set this to false when flashing for production.
-#define MONITOR false
+#define MONITOR true
 // This value caps the speed in RPM. Unfortunately, the motors don't even spin up anywhere
 // near this value, but it is a high target that the PID loop tries to achieve.
 #define TOP_SPEED 150.0
@@ -45,7 +45,7 @@ BLDCDriver6PWM driver = BLDCDriver6PWM(A_PHASE_UH, A_PHASE_UL, A_PHASE_VH, A_PHA
  * 3. Current sensor initialization (https://docs.simplefoc.com/code#step-3--current-sense-setup)
  * The devkit features a current sensor for more fine-grained control.
  */
-LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0/7.0, A_OP1_OUT, A_OP2_OUT, A_OP3_OUT);
+LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0 / 7.0, A_OP1_OUT, A_OP2_OUT, A_OP3_OUT);
 
 /**
  * 4. Motor initialization (https://docs.simplefoc.com/code#step-4--motor-setup-)
@@ -53,34 +53,37 @@ LowsideCurrentSense currentSense = LowsideCurrentSense(0.003, -64.0/7.0, A_OP1_O
  */
 BLDCMotor motor = BLDCMotor(7);
 
-void blinkShort() {
+void blinkShort()
+{
   digitalWrite(LED_RED, HIGH);
   _delay(200);
   digitalWrite(LED_RED, LOW);
   _delay(200);
 }
 
-void blinkLong() {
+void blinkLong()
+{
   digitalWrite(LED_RED, HIGH);
   _delay(600);
   digitalWrite(LED_RED, LOW);
   _delay(200);
 }
 
-void blinkSOS() {
+void blinkSOS()
+{
   // S: ...
   blinkShort();
   blinkShort();
   blinkShort();
 
-  _delay(600);  // gap between letters
+  _delay(600); // gap between letters
 
   // O: ---
   blinkLong();
   blinkLong();
   blinkLong();
 
-  _delay(600);  // gap between letters
+  _delay(600); // gap between letters
 
   // S: ...
   blinkShort();
@@ -93,14 +96,16 @@ void blinkSOS() {
 /**
  * Initialization code, runs once on startup.
  */
-void setup() {
+void setup()
+{
   // Set up te red built in LED
   pinMode(LED_RED, OUTPUT);
 
-  if (MONITOR) {
+  if (MONITOR)
+  {
     Serial.begin(115200);
     SimpleFOCDebug::enable(&Serial);
-    
+
     Serial.println("-------------");
     Serial.print("TOP_SPEED: ");
     Serial.println(TOP_SPEED);
@@ -141,18 +146,22 @@ void setup() {
   digitalWrite(LED_RED, HIGH);
   motor.init();
   int init_success = motor.initFOC();
-  if (!init_success) {
-    if (MONITOR) {
+  if (!init_success)
+  {
+    if (MONITOR)
+    {
       Serial.print("---INIT FOC FAILED---");
     }
 
     // Visual signal that something went wrong
-    while (true) {
+    while (true)
+    {
       blinkSOS();
     }
   }
 
-  if (MONITOR) {
+  if (MONITOR)
+  {
     Serial.print(">>> motor.zero_electric_angle:   ");
     Serial.println(motor.zero_electric_angle);
     Serial.print(">>> motor.sensor_direction:   ");
@@ -165,7 +174,8 @@ void setup() {
 
   // Turn off red LED to show init is done
   digitalWrite(LED_RED, LOW);
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     digitalWrite(LED_RED, HIGH);
     _delay(50);
     digitalWrite(LED_RED, LOW);
@@ -173,23 +183,87 @@ void setup() {
   }
 }
 
+float pulseWidthToThrottle(int pulse_width)
+{
+  const int pulse_min = 6510;
+  const int pulse_mid = 5009;
+  const int pulse_max = 3510;
+
+  // Clamp to bounds to avoid weird behavior
+  if (pulse_width > pulse_min)
+    pulse_width = pulse_min;
+  if (pulse_width < pulse_max)
+    pulse_width = pulse_max;
+
+  float throttle = 0.0;
+
+  if (pulse_width >= pulse_mid)
+  {
+    // Between mid and min → throttle from 0 to -100%
+    throttle = -100.0f * (float)(pulse_width - pulse_mid) / (pulse_min - pulse_mid);
+  }
+  else
+  {
+    // Between mid and max → throttle from 0 to +100%
+    throttle = 100.0f * (float)(pulse_mid - pulse_width) / (pulse_mid - pulse_max);
+  }
+
+  return throttle;
+}
+
 // The actual throttle value to persist among loop iterations
 float throttle = 0.0;
-void loop() {
-  // The adjusted_duty variable is a global that is read without locks
-  uint32_t local_adjusted_duty = adjusted_duty;
+uint32_t last_rising = 0;
+void loop()
+{
+  // Read captured values
+  uint32_t t_rising = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_1);
+  uint32_t t_falling = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
 
-  // Stop the motors if it is in an unreasonable range
-  if (local_adjusted_duty < 100 || local_adjusted_duty > 200) {
-    throttle = 0.0;
-  } else {
-    // Update the throttle value to the scale of [-TOP_SPEED, TOP_SPEED
-    throttle = ((float) (local_adjusted_duty-100) / 100.0) * (TOP_SPEED * 2) - TOP_SPEED;
-  }
+  // Compute pulse width (high time)
+  uint32_t pulse_width = (t_falling >= t_rising)
+                             ? (t_falling - t_rising)
+                             : (0xFFFF - t_rising + t_falling);
+
+  // Fixed period for 50 Hz PWM
+  const uint32_t period = 20000; // in microseconds
+
+  // Compute duty cycle
+  float duty_cycle = ((float)pulse_width / period) * 100.0;
+
+  // Print results
+  // Serial.print("Pulse width: ");
+  // Serial.print(pulse_width);
+  // Serial.print(" us | Duty Cycle: ");
+  // Serial.print(duty_cycle, 2);
+  // Serial.print(" % | Throttle: ");
+  float t = pulseWidthToThrottle(pulse_width);
+  // Serial.print(t, 2);
+  // Serial.println(" %");
+
+  // delay(500);
+
+  // min = 6510
+  // mid = 5009
+  // max = 3510
+
+  // Serial.println("yoyoyo");
+  // // The adjusted_duty variable is a global that is read without locks
+  // uint32_t local_adjusted_duty = adjusted_duty;
+
+  // // Stop the motors if it is in an unreasonable range
+  // if (local_adjusted_duty < 100 || local_adjusted_duty > 200)
+  // {
+  //   throttle = 0.0;
+  // }
+  // else
+  // {
+  //   // Update the throttle value to the scale of [-TOP_SPEED, TOP_SPEED
+  //   throttle = ((float)(local_adjusted_duty - 100) / 100.0) * (TOP_SPEED * 2) - TOP_SPEED;
+  // }
 
   // Set the velocity through SimpleFOC
   motor.loopFOC();
-  motor.move(throttle);
+  motor.move(t);
+  // delay(500);
 }
-
-

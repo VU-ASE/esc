@@ -3,107 +3,151 @@
 
 #include <SimpleFOC.h>
 
-#define pin A_PWM
+#define PWM_PIN A_PWM
 
-uint32_t channel_rising, channel_falling;
-volatile uint32_t frequency_measured, adjusted_duty = 150, last_total_period = 0;
-uint32_t input_freq = 0;
-volatile uint32_t rollover_compare_count = 0;
-HardwareTimer *timer;
+TIM_HandleTypeDef htim2;
 
-volatile uint32_t first_rise = 0, first_fall = 0, second_rise = 0;
+// uint32_t channel_rising, channel_falling;
+// volatile uint32_t frequency_measured, adjusted_duty = 150, last_total_period = 0;
+// uint32_t input_freq = 0;
+// volatile uint32_t rollover_compare_count = 0;
+// HardwareTimer *timer;
 
-#define MAGIC_OFFSET 69 + 100
+// volatile uint32_t first_rise = 0, first_fall = 0, second_rise = 0;
 
-#define MAX_ALLOWED_DIFFERENCE 100
+// #define MAGIC_OFFSET 69 + 100
 
-void signal_rising_callback(void)
+// #define MAX_ALLOWED_DIFFERENCE 100
+
+// void signal_rising_callback(void)
+// {
+//   first_rise = second_rise;
+//   second_rise = timer->getCaptureCompare(channel_rising);
+
+//   // The first and second rise are a sliding window, only when they are both defined in increasing order we have a
+//   if (second_rise > first_rise && first_rise != 0 && second_rise != 0 && first_fall > first_rise && first_fall < second_rise) {
+//     uint32_t total_period = second_rise - first_rise;
+//     uint32_t high_period = first_fall - first_rise;
+
+//     if (total_period > MAX_ALLOWED_DIFFERENCE + last_total_period  || total_period < last_total_period - MAX_ALLOWED_DIFFERENCE) {
+//       last_total_period = total_period;
+//       return;
+//     }
+
+//     last_total_period = total_period;
+
+//     adjusted_duty = (high_period * 1600) / (total_period)-MAGIC_OFFSET;
+//   }
+
+//   rollover_compare_count = 0;
+// }
+
+// /* In case of timer rollover, frequency is to low to be measured set values to 0
+//    To reduce minimum frequency, it is possible to increase prescaler. But this is at a cost of precision. */
+// void rollover_callback(void)
+// {
+//   rollover_compare_count++;
+
+//   if (rollover_compare_count > 1)
+//   {
+//     // frequency_measured = 0;
+//     adjusted_duty = 0;
+//     first_rise = 0;
+//     second_rise = 0;
+//     first_fall = 0;
+//   }
+// }
+
+// void signal_falling_callback(void)
+// {
+//   first_fall = timer->getCaptureCompare(channel_falling);
+// }
+
+volatile uint32_t high_time = 0;
+volatile uint32_t period = 0;
+
+void printTimerInstance(TIM_TypeDef *Instance)
 {
-  first_rise = second_rise;
-  second_rise = timer->getCaptureCompare(channel_rising);
-
-  // The first and second rise are a sliding window, only when they are both defined in increasing order we have a
-  if (second_rise > first_rise && first_rise != 0 && second_rise != 0 && first_fall > first_rise && first_fall < second_rise) {
-    uint32_t total_period = second_rise - first_rise;
-    uint32_t high_period = first_fall - first_rise;
-    
-
-    if (total_period > MAX_ALLOWED_DIFFERENCE + last_total_period  || total_period < last_total_period - MAX_ALLOWED_DIFFERENCE) {
-      last_total_period = total_period;
-      return;
-    }
-
-    last_total_period = total_period;
-
-    adjusted_duty = (high_period * 1600) / (total_period)-MAGIC_OFFSET;
-  }
-
-  rollover_compare_count = 0;
-}
-
-/* In case of timer rollover, frequency is to low to be measured set values to 0
-   To reduce minimum frequency, it is possible to increase prescaler. But this is at a cost of precision. */
-void rollover_callback(void)
-{
-  rollover_compare_count++;
-
-  if (rollover_compare_count > 1)
+  if (Instance == TIM1)
   {
-    // frequency_measured = 0;
-    adjusted_duty = 0;
-    first_rise = 0;
-    second_rise = 0;
-    first_fall = 0;
+    Serial.println("TIM1");
   }
-}
-
-void signal_falling_callback(void)
-{
-  first_fall = timer->getCaptureCompare(channel_falling);
+  else if (Instance == TIM2)
+  {
+    Serial.println("TIM2");
+  }
+  else if (Instance == TIM3)
+  {
+    Serial.println("TIM3");
+  }
+  else if (Instance == TIM4)
+  {
+    Serial.println("TIM4");
+  }
+  else if (Instance == TIM15)
+  {
+    Serial.println("TIM15");
+  }
+  else if (Instance == TIM16)
+  {
+    Serial.println("TIM16");
+  }
+  else if (Instance == TIM17)
+  {
+    Serial.println("TIM17");
+  }
+  else
+  {
+    Serial.println("Unknown Timer");
+  }
 }
 
 void pwm_input_init()
 {
-  pinMode(pin, INPUT);
+  // The PWM pin on this board should behave as input
+  pinMode(PWM_PIN, INPUT);
 
-  TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(pin), PinMap_PWM);
-  channel_rising = STM_PIN_CHANNEL(pinmap_function(digitalPinToPinName(pin), PinMap_PWM));
+  // Enable clocks for TIM2 and GPIOA
+  __HAL_RCC_TIM2_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
-  // channel_risings come by pair for TIMER_INPUT_FREQ_DUTY_MEASUREMENT mode:
-  // channel_rising1 is associated to channel_falling and channel_rising3 is associated with channel_rising4
-  switch (channel_rising)
-  {
-  case 1:
-    channel_falling = 2;
-    break;
-  case 2:
-    channel_falling = 1;
-    break;
-  case 3:
-    channel_falling = 4;
-    break;
-  case 4:
-    channel_falling = 3;
-    break;
-  }
+  // Configure PA15 as TIM2_CH1 (AF1)
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  GPIO_InitStruct.Pin = GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  timer = new HardwareTimer(Instance);
+  // Configure TIM2
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 50 - 1; // 1 MHz timer if APB1 = 72MHz
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 0xFFFF; // Max period for 16-bit timer
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  HAL_TIM_IC_Init(&htim2);
 
-  // Configure rising edge detection to measure frequency
-  timer->setMode(channel_rising, TIMER_INPUT_FREQ_DUTY_MEASUREMENT, pin);
+  TIM_IC_InitTypeDef sConfigIC = {0};
 
-  uint32_t PrescalerFactor = 170;
-  timer->setPrescaleFactor(PrescalerFactor);
-  timer->setOverflow(0x10000); // Max Period value to have the largest possible time to detect rising edge and avoid timer rollover
-  timer->attachInterrupt(channel_rising, signal_rising_callback);
-  timer->attachInterrupt(channel_falling, signal_falling_callback);
-  timer->attachInterrupt(rollover_callback);
+  // CH1: Rising edge capture (Direct TI)
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
+  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
+  sConfigIC.ICFilter = 0;
+  HAL_TIM_IC_ConfigChannel(&htim2, &sConfigIC, TIM_CHANNEL_1);
 
-  timer->refresh();
-  timer->resume();
+  // CH2: Falling edge capture (Indirect TI)
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_FALLING;
+  sConfigIC.ICSelection = TIM_ICSELECTION_INDIRECTTI;
+  HAL_TIM_IC_ConfigChannel(&htim2, &sConfigIC, TIM_CHANNEL_2);
 
-  // Compute this scale factor only once
-  input_freq = timer->getTimerClkFreq() / timer->getPrescaleFactor();
+  // Start input capture
+  HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2);
+
+  Serial.println("Configured timer!");
 }
 
 #endif
