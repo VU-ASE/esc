@@ -39,5 +39,5 @@ find:
 	platformio device list
 
 debug:
-	platforio device monitor
+	platformio device monitor
 

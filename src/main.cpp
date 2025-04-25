@@ -15,11 +15,10 @@
 
 #include <SimpleFOC.h>
 #include "pwm_input.h"
-// Enable debugging over serial - set this to false when flashing for production.
-#define MONITOR true
+
 // This value caps the speed in RPM. Unfortunately, the motors don't even spin up anywhere
 // near this value, but it is a high target that the PID loop tries to achieve.
-#define TOP_SPEED 150.0
+#define TOP_SPEED 250.0
 // During testing these values seemed to keep the motors from getting too hot.
 #define MAX_VOLTAGE 2.7
 #define MAX_CURRENT 5.0
@@ -101,6 +100,7 @@ void setup()
   // Set up te red built in LED
   pinMode(LED_RED, OUTPUT);
 
+
   if (MONITOR)
   {
     Serial.begin(115200);
@@ -135,6 +135,9 @@ void setup()
   // These values get tuned.
   motor.PID_velocity.P = 0.15;
   motor.PID_velocity.I = 0.9;
+  // velocity low pass filtering
+  // default 5ms - try different values to see what is the best.
+  // the lower the less filtered
   motor.LPF_velocity.Tf = LOW_PASS_FILTER;
 
   // 4. Initialize the current sensor
@@ -183,32 +186,33 @@ void setup()
   }
 }
 
-float pulseWidthToThrottle(int pulse_width)
+// If the duty cycle is 11.00 or lower, the throttle should be 100.0
+// If the duty cycle is between 18 and 19, the throttle should be 0.0
+// If the duty cycle is 25 or higher, the throttle should be -100.0
+float compute_throttle(float dutyCycle)
 {
-  const int pulse_min = 6510;
-  const int pulse_mid = 5009;
-  const int pulse_max = 3510;
+    if (dutyCycle <= 11.0f) {
+        return 100.0f;
+    } 
+    else if (dutyCycle >= 25.0f) {
+        return -100.0f;
+    }
+    else if (dutyCycle >= 18.0f && dutyCycle <= 19.0f) {
+        return 0.0f;
+    }
+    else if (dutyCycle > 11.0f && dutyCycle < 18.0f) {
+        // Linearly interpolate from 100 to 0
+        float t = (dutyCycle - 11.0f) / (18.0f - 11.0f);
+        return 100.0f * (1.0f - t);
+    }
+    else if (dutyCycle > 19.0f && dutyCycle < 25.0f) {
+        // Linearly interpolate from 0 to -100
+        float t = (dutyCycle - 19.0f) / (25.0f - 19.0f);
+        return -100.0f * t;
+    }
 
-  // Clamp to bounds to avoid weird behavior
-  if (pulse_width > pulse_min)
-    pulse_width = pulse_min;
-  if (pulse_width < pulse_max)
-    pulse_width = pulse_max;
-
-  float throttle = 0.0;
-
-  if (pulse_width >= pulse_mid)
-  {
-    // Between mid and min → throttle from 0 to -100%
-    throttle = -100.0f * (float)(pulse_width - pulse_mid) / (pulse_min - pulse_mid);
-  }
-  else
-  {
-    // Between mid and max → throttle from 0 to +100%
-    throttle = 100.0f * (float)(pulse_mid - pulse_width) / (pulse_mid - pulse_max);
-  }
-
-  return throttle;
+    // Fallback
+    return 0.0f;
 }
 
 // The actual throttle value to persist among loop iterations
@@ -217,53 +221,28 @@ uint32_t last_rising = 0;
 void loop()
 {
   // Read captured values
-  uint32_t t_rising = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_1);
-  uint32_t t_falling = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
+  // uint32_t t_rising = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_1);
+  // uint32_t t_falling = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
 
-  // Compute pulse width (high time)
-  uint32_t pulse_width = (t_falling >= t_rising)
-                             ? (t_falling - t_rising)
-                             : (0xFFFF - t_rising + t_falling);
+  // // Compute pulse width (high time)
+  // uint32_t pulse_width = (t_falling >= t_rising)
+  //                            ? (t_falling - t_rising)
+  //                            : (0xFFFF - t_rising + t_falling);
 
-  // Fixed period for 50 Hz PWM
+  // // Fixed period for 50 Hz PWM
   const uint32_t period = 20000; // in microseconds
-
+  // Read pulse width locally (copy from global val)
+  const uint32_t pw = pulse_width;
   // Compute duty cycle
-  float duty_cycle = ((float)pulse_width / period) * 100.0;
+  float duty_cycle = ((float)pw / period) * 100.0;
+  float t = compute_throttle(duty_cycle);
 
-  // Print results
-  // Serial.print("Pulse width: ");
-  // Serial.print(pulse_width);
-  // Serial.print(" us | Duty Cycle: ");
-  // Serial.print(duty_cycle, 2);
-  // Serial.print(" % | Throttle: ");
-  float t = pulseWidthToThrottle(pulse_width);
-  // Serial.print(t, 2);
-  // Serial.println(" %");
-
-  // delay(500);
-
-  // min = 6510
-  // mid = 5009
-  // max = 3510
-
-  // Serial.println("yoyoyo");
-  // // The adjusted_duty variable is a global that is read without locks
-  // uint32_t local_adjusted_duty = adjusted_duty;
-
-  // // Stop the motors if it is in an unreasonable range
-  // if (local_adjusted_duty < 100 || local_adjusted_duty > 200)
-  // {
-  //   throttle = 0.0;
-  // }
-  // else
-  // {
-  //   // Update the throttle value to the scale of [-TOP_SPEED, TOP_SPEED
-  //   throttle = ((float)(local_adjusted_duty - 100) / 100.0) * (TOP_SPEED * 2) - TOP_SPEED;
-  // }
+  #if MONITOR
+  Serial.printf("Got pw %u and throttle %f and duty cycle %f\n", pw, t, duty_cycle);
+  #endif
 
   // Set the velocity through SimpleFOC
   motor.loopFOC();
   motor.move(t);
-  // delay(500);
 }
+
