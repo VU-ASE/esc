@@ -188,8 +188,8 @@ void setup()
 
 
 const float THROTTLE_REVERSE     = 5.5f;  // formerly 25.0
-const float THROTTLE_MIDDLE_LOW  = 12.0f; // formerly 18.0
-const float THROTTLE_MIDDLE_HIGH = 12.4f; // formerly 19.0
+const float THROTTLE_MIDDLE_LOW  = 11.9f; // formerly 18.0
+const float THROTTLE_MIDDLE_HIGH = 12.5f; // formerly 19.0
 const float THROTTLE_FULL        = 18.8f; // formerly 11.0
 
 // If the duty cycle is 11.00 or lower, the throttle should be 100.0
