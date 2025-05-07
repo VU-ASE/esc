@@ -186,28 +186,35 @@ void setup()
   }
 }
 
+
+const float THROTTLE_REVERSE     = 5.5f;  // formerly 25.0
+const float THROTTLE_MIDDLE_LOW  = 12.0f; // formerly 18.0
+const float THROTTLE_MIDDLE_HIGH = 12.4f; // formerly 19.0
+const float THROTTLE_FULL        = 18.8f; // formerly 11.0
+
 // If the duty cycle is 11.00 or lower, the throttle should be 100.0
 // If the duty cycle is between 18 and 19, the throttle should be 0.0
 // If the duty cycle is 25 or higher, the throttle should be -100.0
 float compute_throttle(float dutyCycle)
 {
-    if (dutyCycle <= 11.0f) {
+
+    if (dutyCycle >= THROTTLE_FULL) {
         return 100.0f;
     } 
-    else if (dutyCycle >= 25.0f) {
+    else if (dutyCycle <= THROTTLE_REVERSE) {
         return -100.0f;
     }
-    else if (dutyCycle >= 18.0f && dutyCycle <= 19.0f) {
+    else if (dutyCycle >= THROTTLE_MIDDLE_LOW && dutyCycle <= THROTTLE_MIDDLE_HIGH) {
         return 0.0f;
     }
-    else if (dutyCycle > 11.0f && dutyCycle < 18.0f) {
+    else if (dutyCycle < THROTTLE_FULL && dutyCycle > THROTTLE_MIDDLE_HIGH) {
         // Linearly interpolate from 100 to 0
-        float t = (dutyCycle - 11.0f) / (18.0f - 11.0f);
+        float t = (THROTTLE_FULL - dutyCycle) / (THROTTLE_FULL - THROTTLE_MIDDLE_HIGH);
         return 100.0f * (1.0f - t);
     }
-    else if (dutyCycle > 19.0f && dutyCycle < 25.0f) {
+    else if (dutyCycle < THROTTLE_MIDDLE_LOW && dutyCycle > THROTTLE_REVERSE) {
         // Linearly interpolate from 0 to -100
-        float t = (dutyCycle - 19.0f) / (25.0f - 19.0f);
+        float t = (THROTTLE_MIDDLE_LOW - dutyCycle) / (THROTTLE_MIDDLE_LOW - THROTTLE_REVERSE);
         return -100.0f * t;
     }
 
