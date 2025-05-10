@@ -20,7 +20,7 @@
 // near this value, but it is a high target that the PID loop tries to achieve.
 #define TOP_SPEED 250.0
 // During testing these values seemed to keep the motors from getting too hot.
-#define MAX_VOLTAGE 2.7
+#define MAX_VOLTAGE 3.4 // EXPERIMENTAL, previously 2.7 
 #define MAX_CURRENT 5.0
 // More values that would require better testing equipment to thoroughly understand.
 #define LOW_PASS_FILTER 0.1
@@ -188,16 +188,15 @@ void setup()
 
 
 const float THROTTLE_REVERSE     = 5.5f;  // formerly 25.0
-const float THROTTLE_MIDDLE_LOW  = 11.9f; // formerly 18.0
-const float THROTTLE_MIDDLE_HIGH = 12.5f; // formerly 19.0
-const float THROTTLE_FULL        = 18.8f; // formerly 11.0
+const float THROTTLE_MIDDLE_LOW  = 7.3f; // formerly 18.0
+const float THROTTLE_MIDDLE_HIGH = 7.6f; // formerly 19.0
+const float THROTTLE_FULL        = 9.4f; // formerly 11.0
 
 // If the duty cycle is 11.00 or lower, the throttle should be 100.0
 // If the duty cycle is between 18 and 19, the throttle should be 0.0
 // If the duty cycle is 25 or higher, the throttle should be -100.0
 float compute_throttle(float dutyCycle)
 {
-
     if (dutyCycle >= THROTTLE_FULL) {
         return 100.0f;
     } 
@@ -225,31 +224,29 @@ float compute_throttle(float dutyCycle)
 // The actual throttle value to persist among loop iterations
 float throttle = 0.0;
 uint32_t last_rising = 0;
+
 void loop()
 {
-  // Read captured values
-  // uint32_t t_rising = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_1);
-  // uint32_t t_falling = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
+  // Copy pulse width and period from global volatile variables
+  const uint32_t period = t_rising;
+  // const uint32_t period = 2000; // 50hz, 20ms period
+  const uint32_t pulse_high = t_falling;
 
-  // // Compute pulse width (high time)
-  // uint32_t pulse_width = (t_falling >= t_rising)
-  //                            ? (t_falling - t_rising)
-  //                            : (0xFFFF - t_rising + t_falling);
-
-  // // Fixed period for 50 Hz PWM
-  const uint32_t period = 20000; // in microseconds
-  // Read pulse width locally (copy from global val)
-  const uint32_t pw = pulse_width;
-  // Compute duty cycle
-  float duty_cycle = ((float)pw / period) * 100.0;
+  // Avoid division by zero
+  float duty_cycle = 0.0;
+  if (period > 0) {
+    duty_cycle = ((float)pulse_high / period) * 100.0;
+  }
   float t = compute_throttle(duty_cycle);
+  if (safety_counter > 2) {
+    t = 0.0;
+  }
 
   #if MONITOR
-  Serial.printf("Got pw %u and throttle %f and duty cycle %f\n", pw, t, duty_cycle);
+  // Serial.printf("Got pw %u, period %u, duty cycle %f, throttle %f, safety counter %u\n", pulse_high, period, duty_cycle, t, safety_counter);
   #endif
 
   // Set the velocity through SimpleFOC
   motor.loopFOC();
   motor.move(t);
 }
-

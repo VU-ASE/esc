@@ -10,28 +10,48 @@
 
 // Global variables
 HardwareTimer *MyTim2 = nullptr;
-volatile uint32_t pulse_width = 0;
 volatile uint32_t t_rising = 0;
 volatile uint32_t t_falling = 0;
+volatile uint64_t safety_counter = 0;
 
 // Interrupt handler
 void onCaptureCallback()
 {
-  t_rising = MyTim2->getCaptureCompare(1); // Rising edge time
+  uint32_t rising = MyTim2->getCaptureCompare(1); // Current rising edge time
   t_falling = MyTim2->getCaptureCompare(2); // Falling edge time
+  if (rising > t_falling) {
+    t_rising = rising;
+  }
+  safety_counter = 0;
+
+  // Calculate pulse width
+  // if (t_falling >= t_rising)
+  //   pulse_width = t_falling - t_rising;
+  // // else
+  //   // pulse_width = 0xFFFF - t_rising + t_falling;
+  //   // ignore
+
+
+  // // Calculate period (time between consecutive rising edges)
+  // if (t_rising >= t_rising_prev)
+  //   pwm_period = t_rising - t_rising_prev;
+
+  // Serial.printf(" t_falling: %u, t_rising: %u\n", t_falling, rising);
+  
+  // // else
+  // // if (t_rising < t_rising_prev)
+  // //   pwm_period = 0xFFFF - t_rising_prev + t_rising;
+  //   // ignore
 
   #if MONITOR
-  // Serial.printf("Rising: %lu, Falling: %lu\n", t_rising, t_falling);
+  // Serial.printf("Rising: %lu, Falling: %lu, Pulse Width: %lu, Period: %lu\n", t_rising, t_falling, pulse_width, pwm_period);
   #endif
+}
 
-  if (t_falling >= t_rising)
-    pulse_width = t_falling - t_rising;
-  else
-    pulse_width = 0xFFFF - t_rising + t_falling;
 
-  #if MONITOR
-  // Serial.printf("Pulse width: %lu us\n", pulse_width);
-  #endif
+// Called when the timer "runs over" when there is no interrupt, useful to detect a detached PWM cable
+void safetyCallback() {
+  safety_counter++;
 }
 
 void pwm_input_init()
@@ -51,8 +71,8 @@ void pwm_input_init()
   // Now configure TIM2 for PWM Input mode
   MyTim2 = new HardwareTimer(TIM2);
 
-  MyTim2->setPrescaleFactor(50); // 1MHz timer tick
-  MyTim2->setOverflow(0xFFFF);   // Full 16-bit timer
+  MyTim2->setPrescaleFactor(170);  
+  MyTim2->setOverflow(0x10000);    
 
   // HAL-level low config
   TIM_HandleTypeDef *h = MyTim2->getHandle();
@@ -88,6 +108,7 @@ void pwm_input_init()
 
   // Attach interrupt only to CH1
   MyTim2->attachInterrupt(1, onCaptureCallback);
+  MyTim2->attachInterrupt(safetyCallback);
 
   MyTim2->resume();
 
