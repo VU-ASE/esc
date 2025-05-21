@@ -18,9 +18,9 @@
 
 // This value caps the speed in RPM. Unfortunately, the motors don't even spin up anywhere
 // near this value, but it is a high target that the PID loop tries to achieve.
-#define TOP_SPEED 250.0
+#define TOP_SPEED 150.0
 // During testing these values seemed to keep the motors from getting too hot.
-#define MAX_VOLTAGE 3.3 // EXPERIMENTAL, previously 2.7 
+#define MAX_VOLTAGE 2.7 
 #define MAX_CURRENT 5.0
 // More values that would require better testing equipment to thoroughly understand.
 #define LOW_PASS_FILTER 0.1
