@@ -11,33 +11,33 @@ info:
 	@echo ""
 	@echo ""
 
-check-sudo:
+check-sudo: info
 	@if [ "$$EUID" -ne 0 ]; then \
 		echo "This target must be run as root (use sudo)."; \
 		exit 1; \
 	fi
 
 # Takes the firmware currently on the board and dumps it into a binary file
-dump: check-sudo
+dump: check-sudo info
 	@mkdir -p firmware
 	st-flash read firmware/some-esc-firmware.bin 0x8000000 0x20000
 
 # Flashes the compiled firmware and flashes it on the connected board
-flash: check-sudo info
+flash: check-sudo info info
 	@mkdir -p firmware
 	st-flash write firmware/esc-firmware.bin 0x8000000
 
 # Builds the source code into the .pio folder
 # (but this does not flash it yet, nor does it produce a firmware.bin file)
-build: check-sudo
+build: check-sudo info
 	platformio run
 
-flash-manual: check-sudo
+flash-manual: check-sudo info
 	platformio run --target upload
 
-find:
+find: info
 	platformio device list
 
-debug:
+debug: info
 	platformio device monitor
 
