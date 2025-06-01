@@ -1,12 +1,9 @@
-# esc
+<h1 align="center">Firmware for the <code>esc</code></h1>
+<div align="center">
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://ase.vu.nl/docs/category/esc">Documentation</a>
+  <br />
+</div>
+<br/>
 
-TODO:
-* devcontainer with platformio extension
-* Makefile commands for flashing to avoid platformIO GUI
-* 
-
-## Installation
-
-- Install the PlatformIO extension in VSCode
-- Install st-flash (https://github.com/stlink-org/stlink?tab=readme-ov-file)
-- Install the platformIO package on your system if you want to run make build without the VS code toolbar
+**This repository holds the firmware for the electronic speed controllers powering the Rover.**
