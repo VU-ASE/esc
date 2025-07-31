@@ -5,7 +5,7 @@
 #include "HardwareTimer.h"
 
 // Enable debugging over serial - set this to false when flashing for production.
-#define MONITOR false
+#define MONITOR true
 #define PWM_PIN A_PWM
 
 // Global variables
