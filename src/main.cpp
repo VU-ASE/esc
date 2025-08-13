@@ -20,12 +20,37 @@
 // near this value, but it is a high target that the PID loop tries to achieve.
 #define TOP_SPEED 150.0
 // During testing these values seemed to keep the motors from getting too hot.
-#define MAX_VOLTAGE 2.7 
+#define MAX_VOLTAGE 2.7
 #define MAX_CURRENT 5.0
 // More values that would require better testing equipment to thoroughly understand.
 #define LOW_PASS_FILTER 0.1
 #define SENSOR_ALIGN_VOLTAGE 1.0
 #define MOTION_DOWN_SAMPLE 0.0
+
+// -------- MOTOR DEPENDENT SECTION --------
+
+// The following two variables are dependent on the electrical wiring
+// of every single motor, as well as which orientation the sensor
+// faces the motors (CW vs CCW). These values must be hard coded for each
+// motor because the dynamic calibration procedure led to problems in the past.
+//
+
+// Enable this on a "good" ESC and read out the zero_electric_angle during
+// calibration over a couple of runs. Once you have that value, take the
+// "bad" ESC and hardcode the found value to MOTOR_ELECTRIC_ANGLE below.
+// IMPORTANT Note: If you just want to take a good esc and hard code the 
+// values into it, just enable DO_CALIBRATION, record the electric angle
+// and then hard code it here on the same ESC.
+#define DO_CALIBRATION true
+
+// This value must be set correctly by using an ESC that is able to perform
+// calibration and reading off the values from the serial monitor at calib. time
+float MOTOR_ELECTRIC_ANGLE = 0.75;
+
+// Left motors use CCW
+// Right motors use CW
+Direction THIS_MOTOR_DIRECTION = Direction::CCW;
+// -----------------------------------------
 
 /**
  * 1. Sensor initialization (https://docs.simplefoc.com/code#step-1-position-sensor-setup)
@@ -100,8 +125,7 @@ void setup()
   // Set up te red built in LED
   pinMode(LED_RED, OUTPUT);
 
-
-  if (MONITOR)
+  if (MONITOR || DO_CALIBRATION)
   {
     Serial.begin(115200);
     SimpleFOCDebug::enable(&Serial);
@@ -115,6 +139,14 @@ void setup()
   // 1. Initialize magnetic sensor
   sensor.init();
   motor.linkSensor(&sensor);
+
+  // The following two parameters are different per motor and
+  // must be f
+  if (!DO_CALIBRATION)
+  {
+    motor.sensor_direction = THIS_MOTOR_DIRECTION;
+    motor.zero_electric_angle = MOTOR_ELECTRIC_ANGLE;
+  }
 
   // 2. Initialize driver with voltage roughly equal to fully charged voltage.
   driver.voltage_power_supply = 16;
@@ -159,16 +191,26 @@ void setup()
     // Visual signal that something went wrong
     while (true)
     {
+
       blinkSOS();
     }
   }
 
-  if (MONITOR)
+  if (MONITOR || DO_CALIBRATION)
   {
     Serial.print(">>> motor.zero_electric_angle:   ");
     Serial.println(motor.zero_electric_angle);
     Serial.print(">>> motor.sensor_direction:   ");
     Serial.println(motor.sensor_direction);
+
+    if (DO_CALIBRATION)
+    {
+      Serial.println(">>> Now hard code those values ^^^^^^^ (direction & angle)");
+      while (true)
+      {
+        blinkSOS();
+      }
+    }
   }
 
   // This function initializes the PWM input reader to read the input voltage
@@ -186,39 +228,43 @@ void setup()
   }
 }
 
-
-const float THROTTLE_REVERSE     = 5.5f;  // formerly 25.0
-const float THROTTLE_MIDDLE_LOW  = 7.3f; // formerly 18.0
+const float THROTTLE_REVERSE = 5.5f;     // formerly 25.0
+const float THROTTLE_MIDDLE_LOW = 7.3f;  // formerly 18.0
 const float THROTTLE_MIDDLE_HIGH = 7.6f; // formerly 19.0
-const float THROTTLE_FULL        = 9.4f; // formerly 11.0
+const float THROTTLE_FULL = 9.4f;        // formerly 11.0
 
 // If the duty cycle is 11.00 or lower, the throttle should be 100.0
 // If the duty cycle is between 18 and 19, the throttle should be 0.0
 // If the duty cycle is 25 or higher, the throttle should be -100.0
 float compute_throttle(float dutyCycle)
 {
-    if (dutyCycle >= THROTTLE_FULL) {
-        return 100.0f;
-    } 
-    else if (dutyCycle <= THROTTLE_REVERSE) {
-        return -100.0f;
-    }
-    else if (dutyCycle >= THROTTLE_MIDDLE_LOW && dutyCycle <= THROTTLE_MIDDLE_HIGH) {
-        return 0.0f;
-    }
-    else if (dutyCycle < THROTTLE_FULL && dutyCycle > THROTTLE_MIDDLE_HIGH) {
-        // Linearly interpolate from 100 to 0
-        float t = (THROTTLE_FULL - dutyCycle) / (THROTTLE_FULL - THROTTLE_MIDDLE_HIGH);
-        return 100.0f * (1.0f - t);
-    }
-    else if (dutyCycle < THROTTLE_MIDDLE_LOW && dutyCycle > THROTTLE_REVERSE) {
-        // Linearly interpolate from 0 to -100
-        float t = (THROTTLE_MIDDLE_LOW - dutyCycle) / (THROTTLE_MIDDLE_LOW - THROTTLE_REVERSE);
-        return -100.0f * t;
-    }
-
-    // Fallback
+  if (dutyCycle >= THROTTLE_FULL)
+  {
+    return 100.0f;
+  }
+  else if (dutyCycle <= THROTTLE_REVERSE)
+  {
+    return -100.0f;
+  }
+  else if (dutyCycle >= THROTTLE_MIDDLE_LOW && dutyCycle <= THROTTLE_MIDDLE_HIGH)
+  {
     return 0.0f;
+  }
+  else if (dutyCycle < THROTTLE_FULL && dutyCycle > THROTTLE_MIDDLE_HIGH)
+  {
+    // Linearly interpolate from 100 to 0
+    float t = (THROTTLE_FULL - dutyCycle) / (THROTTLE_FULL - THROTTLE_MIDDLE_HIGH);
+    return 100.0f * (1.0f - t);
+  }
+  else if (dutyCycle < THROTTLE_MIDDLE_LOW && dutyCycle > THROTTLE_REVERSE)
+  {
+    // Linearly interpolate from 0 to -100
+    float t = (THROTTLE_MIDDLE_LOW - dutyCycle) / (THROTTLE_MIDDLE_LOW - THROTTLE_REVERSE);
+    return -100.0f * t;
+  }
+
+  // Fallback
+  return 0.0f;
 }
 
 // The actual throttle value to persist among loop iterations
@@ -234,19 +280,29 @@ void loop()
 
   // Avoid division by zero
   float duty_cycle = 0.0;
-  if (period > 0) {
+  if (period > 0)
+  {
     duty_cycle = ((float)pulse_high / period) * 100.0;
   }
   float t = compute_throttle(duty_cycle);
-  if (safety_counter > 2) {
+  if (safety_counter > 2)
+  {
     t = 0.0;
   }
-
-  #if MONITOR
-  // Serial.printf("Got pw %u, period %u, duty cycle %f, throttle %f, safety counter %u\n", pulse_high, period, duty_cycle, t, safety_counter);
-  #endif
 
   // Set the velocity through SimpleFOC
   motor.loopFOC();
   motor.move(t);
+
+  // Uncomment these prints to enable some run-time debugging (every 1k iterations)
+  // static int counter = 0;
+  // if (MONITOR && counter++ % 1000 == 0) {
+  //   Serial.print("Sensor angle: ");
+  //   Serial.print(motor.shaft_angle);
+  //   Serial.print(", Electrical angle: ");
+  //   Serial.print(motor.electrical_angle);
+  //   Serial.print(", Target: ");
+  //   Serial.println(t);
+  //   Serial.printf("Got pw %u, period %u, duty cycle %f, throttle %f, safety counter %u\n", pulse_high, period, duty_cycle, t, safety_counter);
+  // }
 }
